@@ -1,0 +1,63 @@
+<!DOCTYPE suite SYSTEM "../tests/ajcTestSuite.dtd"[]>
+
+<suite>
+
+	<ajc-test dir="bugs181/433351" title="jar weaving">
+ 		<compile options="-1.5" files="InterfaceProj1.java" outjar="code.jar"/>
+		<compile options="-1.5 -showWeaveInfo" inpath="code.jar" files="Extender.aj InterfaceProj2.java">
+		<message kind="weave" text="Extending interface set for type 'test.InterfaceProj1' (InterfaceProj1.java) to include 'test.extender.InterfaceProj2' (Extender.aj)"/>
+		</compile>
+	</ajc-test>
+
+	<ajc-test dir="bugs181/433351" title="jar weaving 2">
+		<compile options="-1.5" files="InterfaceProj1.java ClassProj1.java" outjar="code.jar"/>
+		<compile options="-1.5 -showWeaveInfo" inpath="code.jar" files="Extender2.aj" outjar="code2.jar">
+		<message kind="weave" text="Extending interface set for type 'test.InterfaceProj1' (InterfaceProj1.java) to include 'java.io.Serializable' (Extender2.aj)"/>
+		</compile>
+	</ajc-test>
+
+	<ajc-test dir="bugs181/433351" title="jar weaving 3">
+		<compile options="-1.5" files="InterfaceProj1.java ClassProj1.java" outjar="code.jar"/>
+		<compile options="-1.5 -showWeaveInfo" inpath="code.jar" files="Extender3.aj InterfaceProj2.java ClassProj2.java" outjar="code2.jar">
+		<message kind="weave" text="Setting superclass of type 'test.ClassProj1' (ClassProj1.java) to 'test.extender.ClassProj2' (Extender3.aj)"/>
+		<message kind="weave" text="Extending interface set for type 'test.InterfaceProj1' (InterfaceProj1.java) to include 'test.extender.InterfaceProj2' (Extender3.aj)"/>
+		</compile>
+	</ajc-test>
+	
+	<ajc-test dir="bugs181/433351" title="jar weaving 4">
+		<compile options="-1.5" files="ClassProj1.java InterfaceProj1.java" outjar="code.jar"/>
+		<compile options="-1.5 -showWeaveInfo" inpath="code.jar" files="Extender2.aj" outjar="code2.jar">
+		<message kind="weave" text="Extending interface set for type 'test.InterfaceProj1' (InterfaceProj1.java) to include 'java.io.Serializable' (Extender2.aj)"/>
+		</compile>
+	</ajc-test>
+
+	<ajc-test dir="bugs181/436531" title="parameter names attribute">
+		<compile options="-1.8" files="Azpect.java" inpath="code.jar"/>
+	</ajc-test>
+
+	<ajc-test dir="bugs181/431976" title="variable not initialized">
+		<compile options="-1.8" files="AbstractDependencyInjectionAspect.aj"/>
+	</ajc-test>
+	
+	<ajc-test dir="bugs181/431976" title="thisEnclosingJoinPointStaticPart not initialized">
+		<compile options="-1.8" files="Code.java"/>
+	</ajc-test>
+	
+	<ajc-test dir="bugs181/435446" title="lvartable">
+		<compile options="-1.8" files="Application.java MyAspect.java">
+		</compile>
+		<run class="de.scrum_master.app.Application">
+		</run>
+	</ajc-test>
+	
+	<ajc-test dir="bugs181/377096" title="broken annotations">
+		<compile options="-1.5 -proceedOnError" files="A.java">
+		<message kind="error" text="The attribute wibble is undefined for the annotation type A"/>
+		</compile>
+	</ajc-test>
+
+	<ajc-test dir="bugs181/433744" title="default methods">
+		<compile options="-1.8" files="AnIterator.java"/>
+	</ajc-test>
+
+</suite>
