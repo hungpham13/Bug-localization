@@ -1,6 +1,7 @@
 import javalang
 import pathlib as pl
 import os
+import re
 import pygments
 from pygments.lexers import JavaLexer
 from pygments.token import Token
@@ -134,6 +135,41 @@ def get_token(string, print_result=False, ignore_error=True):
     if print_result:
         print_long_list(tokens)
     return tokens
+
+
+def clean_java(string):
+    # https://en.wikipedia.org/wiki/Java_syntax
+    stop_word = """abstract	continue	for	new	switch
+    assert default	goto	package	synchronized
+    boolean	do	if	private	this 
+    break	double	implements	protected	throw
+    byte	else	import	public	throws
+    case	enum instanceof	return	transient
+    catch	extends	int	short	try
+    char	final	interface	static	void
+    class	finally	long	strictfp	volatile
+    const	float	native	super	while"""
+    black_list = [i + "[\s.:;\n\t]" for i in stop_word.split()]
+    black_list.append('\/\/.+\n')  # comment // in java
+    black_list.append('0x[\w\d]+')  # hex 0x00000
+    black_list.append('<[\w/!\-.]+>')  # html tag <\>
+    black_list.append('\".+\"')  # string "..."
+    black_list.append(
+        '["#(\[{\s.:;,\n\t]-?[\dabcdef]+["dDfFLleE\s.,:;\n\t})\]]|[\s.,:;\n\t]\d+$|^\d+[\s.,:;\n\t]')  # number
+    black_list.append(';[\d;]+')  # number sequence
+
+    punc = """
+    ( )	 [ ]	 ++ -- + - ! ~ * / % << >> >>>	 < <= > >= instanceof	 == !=	 & ^ |	 &&
+    || ? : =	 += -=	 *= /= %=	 <<= >>= >>>=	 &= ^= |= ; { }  ,  . " \\ # ` @
+    """
+    punc_list = punc.split()
+
+    for k in black_list:
+        string = re.sub(k, ";", string)
+    for p in punc_list:
+        string = string.replace(p, " ")
+    string = string.replace("'", "")
+    return string
 
 
 def to_relative_path(full_path, src_dir):

@@ -10,6 +10,5 @@ scikit-learn>=0.19.2
 tqdm>=4.41.0
 pandas>=1.1.4
 seaborn>=0.11.0
-xlrd==1.2.0
 Pygments>=2.3.1
 swifter>=1.1.3
