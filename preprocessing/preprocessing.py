@@ -52,6 +52,22 @@ def camelsplit(tokens):
         new.extend(re.sub(r"([A-Z\d]*[a-z\d]*)", r" \1", t).split())
     return np.unique(np.append(tokens, new))
 
+def clean_source(string):
+    # tokenize
+    tokens = np.unique(get_token(string))
+    # camelCase split to enrich the vocab
+    tokens = camelsplit(tokens)
+    # potter stemer
+    stemmer = PorterStemmer()
+    # plurals = ['caresses', 'flies', 'dies', 'mules', 'denied',
+    #            'died', 'agreed', 'owned', 'humbled', 'sized',
+    #            'meeting', 'stating', 'siezing', 'itemization',
+    #            'sensational', 'traditional', 'reference', 'colonizer', 'plotted']
+    tokens = [stemmer.stem(plural) for plural in tokens]
+    tokens = np.unique(tokens)
+    # clean string
+    return clean_java('  '.join(tokens))
+
 
 def extract_details(src):
     """ Extract comments, class, attributes, methods, variables and package
@@ -159,20 +175,8 @@ class SourceFilesPreprocess(object):
         self.data[['comments', 'class_names', 'attributes', 'method_names',
                    'variables', 'package_name'
                    ]] = self.data['all_content'].swifter.apply(extract_details)
-        # tokenize
-        tokens = np.unique(get_token(self.data['all_content']))
-        # camelCase split to enrich the vocab
-        tokens = camelsplit(tokens)
-        # potter stemer
-        stemmer = PorterStemmer()
-        # plurals = ['caresses', 'flies', 'dies', 'mules', 'denied',
-        #            'died', 'agreed', 'owned', 'humbled', 'sized',
-        #            'meeting', 'stating', 'siezing', 'itemization',
-        #            'sensational', 'traditional', 'reference', 'colonizer', 'plotted']
-        tokens = [stemmer.stem(plural) for plural in tokens]
-        tokens = np.unique(tokens)
         # clean string
-        self.data['cleaned_content'] = clean_java('  '.join(tokens))
+        self.data['cleaned_content'] = self.data['all_content'].swifter.apply(clean_source)
 
     # def vocab_construct(self):
     #     "Construct vocab from all source files"
