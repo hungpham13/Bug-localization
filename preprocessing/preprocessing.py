@@ -1,9 +1,126 @@
 import pandas as pd
-from utils.utils import get_all_source, get_content, extract_details
+from utils.utils import get_all_source, get_content
 import swifter
-from utils.utils import get_token, clean_java
+from nltk.stem.porter import *
+from utils.utils import get_token
 import numpy as np
 import re
+import javalang
+import pygments
+from pygments.lexers import JavaLexer
+from pygments.token import Token
+
+
+def clean_java(string):
+    # https://en.wikipedia.org/wiki/Java_syntax
+    stop_word = """abstract	continue	for	new	switch
+    assert default	goto	package	synchronized
+    boolean	do	if	private	this 
+    break	double	implements	protected	throw
+    byte	else	import	public	throws
+    case	enum instanceof	return	transient
+    catch	extends	int	short	try
+    char	final	interface	static	void
+    class	finally	long	strictfp	volatile
+    const	float	native	super	while"""
+    black_list = [i + "[\s.:;\n\t]" for i in stop_word.split()]
+    black_list.append('\/\/.+\n')  # comment // in java
+    black_list.append('0x[\w\d]+')  # hex 0x00000
+    black_list.append('<[\w/!\-.]+>')  # html tag <\>
+    black_list.append('\".+\"')  # string "..."
+    black_list.append(
+        '["#(\[{\s.:;,\n\t]-?[\dabcdef]+["dDfFLleE\s.,:;\n\t})\]]|[\s.,:;\n\t]\d+$|^\d+[\s.,:;\n\t]')  # number
+    black_list.append(';[\d;]+')  # number sequence
+
+    punc = """
+    ( )	 [ ]	 ++ -- + - ! ~ * / % << >> >>>	 < <= > >= instanceof	 == !=	 & ^ |	 &&
+    || ? : =	 += -=	 *= /= %=	 <<= >>= >>>=	 &= ^= |= ; { }  ,  . " \\ # ` @
+    """
+    punc_list = punc.split()
+
+    for k in black_list:
+        string = re.sub(k, ";", string)
+    for p in punc_list:
+        string = string.replace(p, " ")
+    string = string.replace("'", "")
+    return string
+
+
+def camelsplit(tokens):
+    new = []
+    for t in tokens:
+        new.extend(re.sub(r"([A-Z\d]*[a-z\d]*)", r" \1", t).split())
+    return np.unique(np.append(tokens, new))
+
+
+def extract_details(src):
+    """ Extract comments, class, attributes, methods, variables and package
+    name from a source
+    :param src: String content of a source file
+    :return: Pandas Series with: comments: String,
+                                 class_names, attributes, method_names, variables: List,
+                                 package_name: String
+    """
+
+    # Placeholder for different parts of a source file
+    comments = ''
+    class_names = []
+    attributes = []
+    method_names = []
+    variables = []
+
+    # Source parsing
+    parse_tree = None
+    try:
+        parse_tree = javalang.parse.parse(src)
+        for path, node in parse_tree.filter(javalang.tree.VariableDeclarator):
+            if isinstance(path[-2], javalang.tree.FieldDeclaration):
+                attributes.append(node.name)
+            elif isinstance(path[-2], javalang.tree.VariableDeclaration):
+                variables.append(node.name)
+    except:
+        pass
+
+    # Triming the source file
+    ind = False
+    if parse_tree:
+        if parse_tree.imports:
+            last_imp_path = parse_tree.imports[-1].path
+            src = src[src.index(last_imp_path) + len(last_imp_path) + 1:]
+        elif parse_tree.package:
+            package_name = parse_tree.package.name
+            src = src[src.index(package_name) + len(package_name) + 1:]
+        else:  # no import and no package declaration
+            ind = True
+    # javalang can't parse the source file
+    else:
+        ind = True
+
+    # Lexically tokenize the source file
+    lexed_src = pygments.lex(src, JavaLexer())
+
+    for i, token in enumerate(lexed_src):
+        if token[0] is Token.Comment.Multiline:
+            if ind and i == 0:
+                src = src[src.index(token[1]) + len(token[1]):]
+                continue
+            comments = comments + token[1]
+        elif token[0] is Token.Name.Class:
+            class_names.append(token[1])
+        elif token[0] is Token.Name.Function:
+            method_names.append(token[1])
+
+    # get the package declaration if exists
+    if parse_tree and parse_tree.package:
+        package_name = parse_tree.package.name
+    else:
+        package_name = None
+    return pd.Series({'comments': comments,
+                      'class_names': class_names,
+                      'attributes': attributes,
+                      'method_names': method_names,
+                      'variables': variables,
+                      'package_name': package_name})
 
 
 class BugReportsPreprocess(object):
@@ -42,7 +159,19 @@ class SourceFilesPreprocess(object):
         self.data[['comments', 'class_names', 'attributes', 'method_names',
                    'variables', 'package_name'
                    ]] = self.data['all_content'].swifter.apply(extract_details)
+        # tokenize
         tokens = np.unique(get_token(self.data['all_content']))
+        # camelCase split to enrich the vocab
+        tokens = camelsplit(tokens)
+        # potter stemer
+        stemmer = PorterStemmer()
+        # plurals = ['caresses', 'flies', 'dies', 'mules', 'denied',
+        #            'died', 'agreed', 'owned', 'humbled', 'sized',
+        #            'meeting', 'stating', 'siezing', 'itemization',
+        #            'sensational', 'traditional', 'reference', 'colonizer', 'plotted']
+        tokens = [stemmer.stem(plural) for plural in tokens]
+        tokens = np.unique(tokens)
+        # clean string
         self.data['cleaned_content'] = clean_java('  '.join(tokens))
 
     # def vocab_construct(self):
