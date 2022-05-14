@@ -1,5 +1,5 @@
 import pandas as pd
-from utils.utils import get_all_source, get_content
+from utils.utils import get_all_source, get_content, to_relative_path
 import swifter
 from nltk.stem.porter import *
 from utils.utils import get_token
@@ -52,21 +52,20 @@ def camelsplit(tokens):
         new.extend(re.sub(r"([A-Z\d]*[a-z\d]*)", r" \1", t).split())
     return np.unique(np.append(tokens, new))
 
+
 def clean_source(string):
     # tokenize
-    tokens = np.unique(get_token(string))
+    tokens = get_token(string)
     # camelCase split to enrich the vocab
     tokens = camelsplit(tokens)
+    # lowercase
+    tokens = [s.lower().strip() for s in tokens]
     # potter stemer
     stemmer = PorterStemmer()
-    # plurals = ['caresses', 'flies', 'dies', 'mules', 'denied',
-    #            'died', 'agreed', 'owned', 'humbled', 'sized',
-    #            'meeting', 'stating', 'siezing', 'itemization',
-    #            'sensational', 'traditional', 'reference', 'colonizer', 'plotted']
-    tokens = [stemmer.stem(plural) for plural in tokens]
-    tokens = np.unique(tokens)
+    tokens_stemed = [stemmer.stem(t) for t in tokens]
     # clean string
-    return clean_java('  '.join(tokens))
+    return pd.Series({'cleaned_stemed': clean_java(' '.join(tokens_stemed)),
+                      'cleaned': clean_java(' '.join(tokens))})
 
 
 def extract_details(src):
@@ -163,38 +162,40 @@ class SourceFilesPreprocess(object):
         self.data = pd.DataFrame(columns=['all_content', 'comments',
                                           'class_names', 'attributes',
                                           'method_names', 'variables',
-                                          'relative_path', 'package_name'])
+                                          'relative_path', 'package_name',
+                                          'stemed_content', 'cleaned_content'])
+        self.data['full_path'] = get_all_source(self.ROOT_PATH)
+        self.data['relative_path'] = [to_relative_path(f, self.ROOT_PATH) \
+                                      for f in self.data['full_path']]
+        self.data['all_content'] = self.data['full_path'].apply(get_content)
 
     def get_root(self):
         return self.ROOT_PATH
 
     def transform(self):
-        self.data['relative_path'] = get_all_source(self.get_root())
-        self.data['all_content'] = self.data['relative_path'].swifter.apply(
-            get_content)
+        # extract details
         self.data[['comments', 'class_names', 'attributes', 'method_names',
                    'variables', 'package_name'
                    ]] = self.data['all_content'].swifter.apply(extract_details)
         # clean string
-        self.data['cleaned_content'] = self.data['all_content'].swifter.apply(clean_source)
+        self.data[['stemed_content', 'cleaned_content']] = self.data[
+            'all_content'].swifter.apply(clean_source)
 
-    # def vocab_construct(self):
-    #     "Construct vocab from all source files"
-    #     tokens = []
-    #     for raw_content in self.data['all_content']:
-    #         token = np.unique(get_token(raw_content))
-    #         tokens.extend(token)
-    #     tokens = np.unique(tokens)
-    #     # enrich vocab by split into their components based on capital letters
-    #     new = []
-    #     for t in tokens:
-    #         new.extend(re.sub( r"([A-Z\d]*[a-z\d]*)", r" \1", t).split())
-    #     # clean token
-    #     tokens = clean_java('  '.join(np.append(tokens)).split()
-    #     return np.unique([i.lower() for i in np.append(tokens, new)])
+    def get_vocab(self, stem=True):
+        """Generate vocab from all source files"""
+        content = self.data.stemed_content if stem else self.data.cleaned_content
+        if content.empty:
+            raise ReferenceError("Not transformed yet")
+        return np.unique([i for t in content for i in t.split()])
 
 
 if __name__ == '__main__':
-    s = BugReportsPreprocess("data/bug reports/Birt.txt")
-    s.transform()
-    print(s.data.head())
+    s = SourceFilesPreprocess("data/source files/birt-20140211-1400/")
+    i = 0
+    print(s.data.relative_path)
+    # print(s.data.all_content.loc[i])
+    # print(clean_source(s.data.all_content.loc[i])['cleaned'])
+    # s.transform()
+    #
+    # print("No stem:", len(s.get_vocab(stem=False)))
+    # print("Stem:", len(s.get_vocab(stem=True)))

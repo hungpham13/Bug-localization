@@ -1,7 +1,7 @@
 import javalang
 import pathlib as pl
 import os
-import pandas as pd
+
 
 def get_all_source(root):
     all_source_path = []
@@ -44,8 +44,6 @@ def get_content(file_path):
         return text.replace('\ufffd', "")
 
 
-
-
 def get_ast(file_path, print_result=False):
     with open(file_path) as f:
         tree = javalang.parse.parse(f.read())
@@ -64,7 +62,6 @@ def get_token(string, print_result=False, ignore_error=True):
     return tokens
 
 
-
 def to_relative_path(full_path, src_dir):
     assert full_path[:len(src_dir)] == src_dir
     return full_path[len(src_dir):]
@@ -72,3 +69,8 @@ def to_relative_path(full_path, src_dir):
 
 def to_full_path(relative_path, src_dir):
     return src_dir + relative_path
+
+
+def joins(l):
+    """Join list to string"""
+    return " ".join(l)
