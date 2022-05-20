@@ -1,13 +1,3 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<?eclipse version="3.0"?>
-<plugin>
-   <extension
-         point="org.eclipse.birt.report.engine.dataExtraction">
-         <dataExtraction 
-         	id = "org.eclipse.birt.report.engine.dataextraction.csv"
-         	name = "%dataextraction.extension.name"
-      		format = "csv"
-      		mimeType = "text/csv"
-      		class = "org.eclipse.birt.report.engine.dataextraction.csv.CSVDataExtractionImpl"/>
-   </extension>
-</plugin>
+version https://git-lfs.github.com/spec/v1
+oid sha256:595172f11fe9e9627f296ff2557b501cc0af9207e22405d408179500fdbfbb8c
+size 466

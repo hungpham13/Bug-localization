@@ -6,6 +6,7 @@ from preprocessing.preprocessing import SourceFilesPreprocess, \
     BugReportsPreprocess
 from utils.utils import joins
 from tqdm import tqdm
+import multiprocessing as mp
 import swifter
 import traceback
 
@@ -194,46 +195,4 @@ if __name__ == '__main__':
         'source_root': "data/source files/birt-20140211-1400/",
         'bugs_tsv_path': "data/bug reports/Birt.txt"
     }
-    # e = ExtractFeature(**config)
-    # self = e
 
-    # sources = self.sources.data
-    # bugs = self.bugs.data
-    # print("Start extracting features...")
-    # feature_1 = linear_kernel(self.bug_tfidf, self.src_tfidf, dense_output=True)
-    #
-    # assert len(bugs) == feature_1.shape[0]
-    # assert len(sources) == feature_1.shape[1]
-    #
-    # feature_df = pd.DataFrame(columns=['bug', 'src', 'f1_rvsm', 'label'])
-    #
-    # print("Creating feature table using rvsm values...")
-    # for i in tqdm(range(len(bugs))):
-    #     contaminated_src = bugs['fixed_files'].loc[i]  # relative path
-    #     contaminated_index = [
-    #         sources.index[sources.relative_path == f].tolist()[0]
-    #         for f in contaminated_src
-    #     ]
-    #
-    #     not_contaminated_index = [k for k in range(len(sources))
-    #                               if k not in contaminated_index]
-    #     negative_300 = sorted(not_contaminated_index,
-    #                           key=lambda y: feature_1[i][y])[:300]
-    #     new_src_index = contaminated_index + negative_300
-    #     labels = [1] * len(contaminated_index) + [0] * len(negative_300)
-    #
-    #     # bug_src_indexes.extend([(i,s) for s in new_src_index])
-    #     # bug_indexes, src_indexes = list(zip(*bug_src_indexes))
-    #     feature_df = feature_df.append(
-    #         pd.DataFrame({'bug': [i] * len(new_src_index),
-    #                       'src': new_src_index,
-    #                       'f1_rvsm': [feature_1[i][y] for y in new_src_index],
-    #                       'label': labels,
-    #                       }), ignore_index=True)
-    # feature_df.head()
-    # # Extract other features
-    # print("Start extracting other features...")
-    print("Start extracting other features...")
-    other_df = feature_df.swifter.apply(
-        lambda x: compute_features(self, x.bug, x.src),
-        axis=1, result_type='expand', )

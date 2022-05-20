@@ -9,7 +9,7 @@ scikit-learn==1.0.2
 #torch>=1.7.0
 #torchvision>=0.8.1
 tqdm==4.64.0
-pandas==1.4.2
+pandas<=0.4.2
 seaborn>=0.11.0
 Pygments>=2.3.1
 swifter>=1.1.3

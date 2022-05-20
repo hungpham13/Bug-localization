@@ -1,5 +1,3 @@
-Any,Boolean,Integer,Double,Decimal,String,Date,Blob,Binary,SQL Date,SQL Time
-Any,Boolean,Integer,Float,Decimal,String,DateTime,Blob,Binary,Date,Time
-,,,,,,,,,,
-true,true,-24,-123.456789,1.23E+456791,Simple String,2008-08-08 08:08:08.000+0100,,,2008-08-08,08:08:08
-Any String,false,28,123.456789,1.23E-456787,,,,,,
+version https://git-lfs.github.com/spec/v1
+oid sha256:3276dccf5b548513d6748d35c44ae2f29a5e6f3378a41918874987565d743831
+size 314
