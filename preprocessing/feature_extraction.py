@@ -5,7 +5,6 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from preprocessing.preprocessing import SourceFilesPreprocess, \
     BugReportsPreprocess
 from tqdm import tqdm
-import multiprocessing as mp
 import swifter
 import traceback
 
@@ -78,8 +77,7 @@ class ExtractFeature(object):
         return: Pandas dataframe that contains all previous bug report, with the same template as Bug Preprocess class data
         """
         report_time = self.bugs.data['report_time'].loc[bug_index]
-        src_path = self.sources.data['relative_path'].loc[
-            src_index]  # relative path
+        src_path = self.sources.data['relative_path'].loc[src_index]  # relative path
         df = self.bugs.data
         prev_bug_df = df.loc[(df['fixed_files'].str.contains(src_path)) &
                              (df.index != bug_index) &
@@ -152,8 +150,8 @@ class ExtractFeature(object):
             contaminated_index = []
             for f in contaminated_src:
                 try:
-                    i = sources.index[sources.relative_path == f].tolist()[0]
-                    contaminated_index.append(i)
+                    c_i = sources.index[sources.relative_path == f].tolist()
+                    contaminated_index.extend(c_i)
                 except:
                     raise FileNotFoundError("Not found source file", f)
 
@@ -190,8 +188,7 @@ class ExtractFeature(object):
 
 
 if __name__ == '__main__':
-    from preprocessing.config import aspectj
-
-    e = ExtractFeature(**aspectj)
+    from preprocessing.config import tomcat
+    e = ExtractFeature(**tomcat)
     e.extract_feature()
     e.save_to_csv()
