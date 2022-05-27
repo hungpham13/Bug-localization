@@ -1,6 +1,8 @@
+import nltk
 import pandas as pd
 from utils.utils import get_all_source, get_content, to_relative_path
 import swifter
+import string
 from nltk.stem.porter import *
 from utils.utils import get_token
 import numpy as np
@@ -10,19 +12,32 @@ import pygments
 from pygments.lexers import JavaLexer
 from pygments.token import Token
 
+english_stop_word = """i	me	my	myself	we	our	ours	ourselves	you	your
+	yours	yourself	yourselves	he	him	his	himself	she	her	hers	herself	
+	it	its	itself	they	them	their	theirs	themselves	what	which	
+	who	whom	this	that	these	those	am	is	are	was	were	be	been
+    being	have	has	had	having	do	does	did	doing	a	an	the	and	
+    but	if	or	because	as	until	while	of	at	by	for	with	about	
+    against	between	into	through	during	before	after	above	below	
+    to	from	up	down	in	out	on	off	over	under	again	further	
+    then	once	here	there	when	where	why	how	all	any	both	
+    each	few	more	most	other	some	such	no	nor	not	only	
+    own	same	so	than	too	very	s	t	can	will	just	don	
+    should	now	d	ll	m	o	re	ve	y	ain	aren	couldn	didn	doesn	
+    hadn	hasn	haven	isn	ma	mightn	mustn	needn	shan	shouldn	wasn
+    weren	won	wouldn	b	c	e	f	g	h	j	k	l	n	p	q	u	v	
+    w	x	z	us"""
 
-def clean_java(string):
+java_stop_word = """abstract	continue	for	new	switch assert default	goto
+	package	synchronized boolean	do	if	private	this break	double	
+	implements	protected	throw byte	else	import	public	throws
+case	enum instanceof	return	transient catch	extends	int	short	try
+char	final	interface	static	void class	finally	long	strictfp	
+volatile const	float	native	super	while"""
+
+
+def clean_java(string, stop_word):
     # https://en.wikipedia.org/wiki/Java_syntax
-    stop_word = """abstract	continue	for	new	switch
-    assert default	goto	package	synchronized
-    boolean	do	if	private	this 
-    break	double	implements	protected	throw
-    byte	else	import	public	throws
-    case	enum instanceof	return	transient
-    catch	extends	int	short	try
-    char	final	interface	static	void
-    class	finally	long	strictfp	volatile
-    const	float	native	super	while"""
     black_list = [i + "[\s.:;\n\t]" for i in stop_word.split()]
     black_list.append('\/\/.+\n')  # comment // in java
     black_list.append('0x[\w\d]+')  # hex 0x00000
@@ -53,19 +68,45 @@ def camelsplit(tokens):
     return np.unique(np.append(tokens, new))
 
 
-def clean_source(string):
+def clean_bug(content, stem = True, stop_word = True):
     # tokenize
-    tokens = get_token(string)
+    tokens = nltk.wordpunct_tokenize(content)
+    # camelCase split to enrich the vocab
+    tokens = camelsplit(tokens)
+    # lowercase
+    tokens = [s.lower().strip() for s in tokens]
+    # remove punc and number
+    punctnum_table = str.maketrans(
+        {c: None for c in string.punctuation + string.digits})
+    tokens = [t.translate(punctnum_table) for t in tokens]
+    # remove stop words
+    if stop_word:
+        tokens = [t for t in tokens if t not in english_stop_word]
+    # potter stemer
+    if stem:
+        stemmer = PorterStemmer()
+        tokens_stemed = [stemmer.stem(t) for t in tokens]
+        return " ".join(np.unique(tokens_stemed))
+    else:
+        # clean string
+        return " ".join(np.unique(tokens))
+
+
+def clean_source(source_string, stem=True):
+    # tokenize
+    tokens = get_token(source_string)
     # camelCase split to enrich the vocab
     tokens = camelsplit(tokens)
     # lowercase
     tokens = [s.lower().strip() for s in tokens]
     # potter stemer
-    stemmer = PorterStemmer()
-    tokens_stemed = [stemmer.stem(t) for t in tokens]
-    # clean string
-    return pd.Series({'cleaned_stemed': clean_java(' '.join(tokens_stemed)),
-                      'cleaned': clean_java(' '.join(tokens))})
+    if stem:
+        stemmer = PorterStemmer()
+        tokens_stemed = [stemmer.stem(t) for t in tokens]
+        return clean_java(' '.join(tokens_stemed), java_stop_word)
+    else:
+        # clean string
+        return clean_java(' '.join(tokens), java_stop_word)
 
 
 def extract_details(src):
@@ -139,8 +180,10 @@ def extract_details(src):
 
 
 class BugReportsPreprocess(object):
-    def __init__(self, table_path):
+    def __init__(self, table_path, stem = True):
         self.data = pd.read_csv(table_path, sep='\t', header=0)
+        print(len(self.data))
+        self.stem = stem
 
     def transform(self):
         self.data['summary'] = self.data['summary'].str.extract(
@@ -149,6 +192,11 @@ class BugReportsPreprocess(object):
         self.data['description'] = self.data['description'].fillna("")
         self.data['content'] = self.data['summary'] + ". " + self.data[
             'description']
+
+        self.data['summary'] = self.data['summary'].swifter.apply(lambda s: clean_bug(s, self.stem))
+        self.data['description'] = self.data['description'].swifter.apply(lambda s: clean_bug(s, self.stem))
+        self.data['content'] = self.data['content'].swifter.apply(lambda s: clean_bug(s, self.stem))
+
         self.data['report_time'] = pd.to_datetime(self.data['report_time'])
         self.data['fixed_files'] = self.data['files'].str.split()
         self.data.drop(
@@ -157,13 +205,14 @@ class BugReportsPreprocess(object):
 
 
 class SourceFilesPreprocess(object):
-    def __init__(self, root_path):
+    def __init__(self, root_path, stem = True):
         self.ROOT_PATH = root_path
+        self.stem = stem
         self.data = pd.DataFrame(columns=['all_content', 'comments',
                                           'class_names', 'attributes',
                                           'method_names', 'variables',
                                           'relative_path', 'package_name',
-                                          'stemed_content', 'cleaned_content'])
+                                          'cleaned_content'])
         self.data['full_path'] = get_all_source(self.ROOT_PATH)
         self.data['relative_path'] = [to_relative_path(f, self.ROOT_PATH) \
                                       for f in self.data['full_path']]
@@ -178,12 +227,16 @@ class SourceFilesPreprocess(object):
                    'variables', 'package_name'
                    ]] = self.data['all_content'].swifter.apply(extract_details)
         # clean string
-        self.data[['stemed_content', 'cleaned_content']] = self.data[
-            'all_content'].swifter.apply(clean_source)
+        self.data['cleaned_content'] = self.data['all_content'].swifter.apply(lambda s: clean_source(s, self.stem))
+        self.data['comments'] = self.data['comments'].swifter.apply(lambda s: clean_bug(s, self.stem))
+        self.data['class_names'] = self.data['class_names'].str.join(' ').swifter.apply(lambda s: clean_bug(s, self.stem, stop_word=False))
+        self.data['method_names'] = self.data['method_names'].str.join(' ').swifter.apply(lambda s: clean_bug(s, self.stem, stop_word=False))
+        self.data['variables'] = self.data['variables'].str.join(' ').swifter.apply(lambda s: clean_bug(s, self.stem, stop_word=False))
 
-    def get_vocab(self, stem=True):
+
+    def get_vocab(self):
         """Generate vocab from all source files"""
-        content = self.data.stemed_content if stem else self.data.cleaned_content
+        content = self.data.cleaned_content
         if content.empty:
             raise ReferenceError("Not transformed yet")
         return np.unique([i for t in content for i in t.split()])

@@ -4,7 +4,6 @@ import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from preprocessing.preprocessing import SourceFilesPreprocess, \
     BugReportsPreprocess
-from utils.utils import joins
 from tqdm import tqdm
 import multiprocessing as mp
 import swifter
@@ -53,20 +52,23 @@ def sim(content_1, content_2, tfidf):
 class ExtractFeature(object):
     def __init__(self, **kwargs):
         self.name = kwargs['name']
-        self.sources = SourceFilesPreprocess(kwargs['source_root'])
-        self.bugs = BugReportsPreprocess(kwargs['bugs_tsv_path'])
+        self.sources = SourceFilesPreprocess(kwargs['source_root'],
+                                             kwargs['stem'])
+        self.bugs = BugReportsPreprocess(kwargs['bugs_tsv_path'],
+                                         kwargs['stem'])
         print("Start preprocessing data...")
         self.sources.transform()
         self.bugs.transform()
         print("Done preprocessing data.")
 
-        self.tfidf = TfidfVectorizer(sublinear_tf=True, smooth_idf=False)
+        self.tfidf = TfidfVectorizer(sublinear_tf=True)
         src_strings = self.sources.data['cleaned_content'].tolist()
         report_strings = self.bugs.data['content'].tolist()
 
         self.src_tfidf = self.tfidf.fit_transform(src_strings)
         self.bug_tfidf = self.tfidf.transform(report_strings)
 
+        self.f1_result = None
         self.result = None
 
     def get_prev_details(self, bug_index, src_index):
@@ -75,7 +77,6 @@ class ExtractFeature(object):
                 src path is relative path
         return: Pandas dataframe that contains all previous bug report, with the same template as Bug Preprocess class data
         """
-
         report_time = self.bugs.data['report_time'].loc[bug_index]
         src_path = self.sources.data['relative_path'].loc[
             src_index]  # relative path
@@ -104,18 +105,14 @@ class ExtractFeature(object):
                                               src['class_names'])
             feature_4 = bug_fixing_recency(bug['report_time'], last_time)
             feature_5 = length
-            feature_6 = sim(bug['summary'], joins(src['class_names']),
-                            self.tfidf)
-            feature_7 = sim(bug['summary'], joins(src['method_names']),
-                            self.tfidf)
-            feature_8 = sim(bug['summary'], joins(src['variables']), self.tfidf)
+            feature_6 = sim(bug['summary'], src['class_names'], self.tfidf)
+            feature_7 = sim(bug['summary'], src['method_names'], self.tfidf)
+            feature_8 = sim(bug['summary'], src['variables'], self.tfidf)
             feature_9 = sim(bug['summary'], src['comments'], self.tfidf)
-            feature_10 = sim(bug['description'], joins(src['class_names']),
+            feature_10 = sim(bug['description'], src['class_names'], self.tfidf)
+            feature_11 = sim(bug['description'], src['method_names'],
                              self.tfidf)
-            feature_11 = sim(bug['description'], joins(src['method_names']),
-                             self.tfidf)
-            feature_12 = sim(bug['description'], joins(src['variables']),
-                             self.tfidf)
+            feature_12 = sim(bug['description'], src['variables'], self.tfidf)
             feature_13 = sim(bug['description'], src['comments'], self.tfidf)
 
         except Exception as e:
@@ -152,10 +149,13 @@ class ExtractFeature(object):
         feature_df = pd.DataFrame(columns=['bug', 'src', 'f1_rvsm', 'label'])
         for i in tqdm(range(len(bugs))):
             contaminated_src = bugs['fixed_files'].loc[i]  # relative path
-            contaminated_index = [
-                sources.index[sources.relative_path == f].tolist()[0]
-                for f in contaminated_src
-            ]
+            contaminated_index = []
+            for f in contaminated_src:
+                try:
+                    i = sources.index[sources.relative_path == f].tolist()[0]
+                    contaminated_index.append(i)
+                except:
+                    raise FileNotFoundError("Not found source file", f)
 
             not_contaminated_index = [k for k in range(len(sources))
                                       if k not in contaminated_index]
@@ -173,7 +173,7 @@ class ExtractFeature(object):
                                           new_src_index],
                               'label': labels,
                               }), ignore_index=True)
-        feature_df.head()
+        self.f1_result = feature_df
         # Extract other features
         print("Start extracting other features...")
         other_df = feature_df.swifter.apply(
@@ -183,16 +183,15 @@ class ExtractFeature(object):
         self.result = pd.concat([feature_df, other_df], axis=1)
 
     def save_to_csv(self):
-        if not self.result:
+        if self.result.empty:
             raise ReferenceError("Not extracted yet")
         else:
             self.result.to_csv(f"{self.name}.csv")
 
 
 if __name__ == '__main__':
-    config = {
-        'name': "Birt",
-        'source_root': "data/source files/birt-20140211-1400/",
-        'bugs_tsv_path': "data/bug reports/Birt.txt"
-    }
+    from preprocessing.config import aspectj
 
+    e = ExtractFeature(**aspectj)
+    e.extract_feature()
+    e.save_to_csv()
